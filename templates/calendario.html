@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mi Calendario</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="container">
+  <h1>Calendario de {{ month }}/{{ year }}</h1>
+
+  <form method="POST" class="form-agregar-tarea">
+    <h2>➕ Agregar Nueva Tarea</h2>
+    <input type="text" name="titulo" placeholder="Título de la tarea" required>
+    <input type="date" name="fecha" required>
+    <input type="time" name="hora" required>
+    <button type="submit" class="btn">Agregar</button>
+  </form>
+
+  <table class="calendar">
+    <tr>
+      <th>Lun</th><th>Mar</th><th>Mié</th><th>Jue</th><th>Vie</th><th>Sáb</th><th>Dom</th>
+    </tr>
+    {% for semana in cal %}
+      <tr>
+        {% for dia in semana %}
+          {% if dia == 0 %}
+            <td></td>
+          {% else %}
+            <td>
+              <strong>{{ dia }}</strong><br>
+              {% if eventos_por_dia[dia] %}
+                {% for evento in eventos_por_dia[dia] %}
+                  <div class="evento">{{ evento }}</div>
+                {% endfor %}
+              {% endif %}
+            </td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+    {% endfor %}
+  </table>
+
+  <a href="{{ url_for('cuentas') }}" class="btn">Volver</a>
+</div>
+</body>
+</html>

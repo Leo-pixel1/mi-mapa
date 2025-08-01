@@ -1,0 +1,12 @@
+# Ignorar credenciales y tokens
+credentials.json
+credentials/
+token.json
+*.pkl
+
+# Ignorar caches de Python
+__pycache__/
+*.pyc
+
+# Ignorar entorno local
+.env

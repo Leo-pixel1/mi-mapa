@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mis Cuentas</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>Cuentas Vinculadas</h1>
+    <p>Correo activo: <strong>{{ correo }}</strong></p>
+
+    <div class="nav">
+      <a href="{{ url_for('correos') }}" class="btn">Mis Correos</a>
+      <a href="{{ url_for('classroom') }}" class="btn">Mis Cursos</a>
+      <a href="{{ url_for('calendario') }}" class="btn">Mi Calendario</a>
+    </div>
+
+    <div class="bottom">
+      <a href="{{ url_for('logout') }}" class="btn danger">Cerrar sesión</a>
+    </div>
+  </div>
+</body>
+</html>

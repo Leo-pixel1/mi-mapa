@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mis Correos</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>Últimos Correos</h1>
+    {% for correo in correos %}
+      <div class="card">
+        <p><strong>De:</strong> {{ correo['from'] }}</p>
+        <p><strong>Asunto:</strong> {{ correo['subject'] }}</p>
+        <p><strong>Contenido:</strong> {{ correo['snippet'] }}</p>
+      </div>
+    {% endfor %}
+
+    <a href="{{ url_for('cuentas') }}" class="btn">Volver</a>
+  </div>
+</body>
+</html>
