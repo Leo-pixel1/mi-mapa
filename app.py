@@ -3,17 +3,16 @@ from datetime import datetime, timedelta
 from flask import Flask, redirect, session, url_for, render_template, request
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import Flow
 
-# Desarrollo local sin HTTPS
+# Permitir HTTP (solo local)
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = Flask(__name__)
 app.secret_key = 'supersecreto'
 
-# Variables globales
 TOKEN_FILE = 'credentials/token.pkl'
 
-# Scopes para los servicios
 SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
@@ -26,6 +25,18 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly"
 ]
 
+def get_credentials_config():
+    if 'GOOGLE_CREDENTIALS' in os.environ:
+        return json.loads(os.environ['GOOGLE_CREDENTIALS'])
+    else:
+        with open('credentials.json') as f:
+            return json.load(f)
+
+def get_redirect_uri():
+    if os.environ.get("RENDER", False):
+        return "https://mi-mapa.onrender.com/oauth2callback"
+    return "http://localhost:5000/oauth2callback"
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -35,13 +46,11 @@ def login():
     if os.path.exists(TOKEN_FILE):
         os.remove(TOKEN_FILE)
 
-    cred_conf = json.loads(os.environ.get("GOOGLE_CREDENTIALS"))
-
-    from google_auth_oauthlib.flow import Flow
+    cred_conf = get_credentials_config()
     flow = Flow.from_client_config(
         cred_conf,
         scopes=SCOPES,
-        redirect_uri="http://localhost:5000/oauth2callback"
+        redirect_uri=get_redirect_uri()
     )
 
     auth_url, state = flow.authorization_url(
@@ -56,17 +65,13 @@ def login():
 @app.route('/oauth2callback')
 def oauth2callback():
     code = request.args.get('code')
+    cred_web = get_credentials_config()['web']
 
-    cred_conf = json.loads(os.environ.get("GOOGLE_CREDENTIALS"))['web']
-    token_uri = cred_conf['token_uri']
-    client_id = cred_conf['client_id']
-    client_secret = cred_conf['client_secret']
-
-    token_resp = requests.post(token_uri, data={
+    token_resp = requests.post(cred_web['token_uri'], data={
         'code': code,
-        'client_id': client_id,
-        'client_secret': client_secret,
-        'redirect_uri': 'http://localhost:5000/oauth2callback',
+        'client_id': cred_web['client_id'],
+        'client_secret': cred_web['client_secret'],
+        'redirect_uri': get_redirect_uri(),
         'grant_type': 'authorization_code'
     })
     token_resp.raise_for_status()
@@ -75,9 +80,9 @@ def oauth2callback():
     creds = Credentials(
         token_json['access_token'],
         refresh_token=token_json.get('refresh_token'),
-        token_uri=token_uri,
-        client_id=client_id,
-        client_secret=client_secret,
+        token_uri=cred_web['token_uri'],
+        client_id=cred_web['client_id'],
+        client_secret=cred_web['client_secret'],
         scopes=SCOPES
     )
 
@@ -104,12 +109,23 @@ def correos():
     msgs = svc.users().messages().list(userId='me', maxResults=5).execute().get('messages', [])
     correos = []
     for m in msgs:
-        md = svc.users().messages().get(userId='me', id=m['id']).execute()
+        md = svc.users().messages().get(userId='me', id=m['id'], format='full').execute()
         hdr = md['payload']['headers']
+        body = ''
+        parts = md['payload'].get('parts', [])
+        if parts:
+            for part in parts:
+                if part.get('mimeType') == 'text/plain' and 'data' in part.get('body', {}):
+                    import base64
+                    body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                    break
+        else:
+            body = md.get('snippet', '')
+
         correos.append({
             'from': next((h['value'] for h in hdr if h['name'] == 'From'), ''),
             'subject': next((h['value'] for h in hdr if h['name'] == 'Subject'), ''),
-            'snippet': md.get('snippet', '')
+            'snippet': body
         })
     return render_template('correos.html', correos=correos)
 
@@ -167,9 +183,13 @@ def calendario():
         t = request.form['titulo']
         f = request.form['fecha']
         h = request.form['hora']
-        ev = {'summary': t, 'start': {'dateTime': f + 'T' + h + ':00', 'timeZone': 'America/Lima'},
-              'end': {'dateTime': f + 'T' + f"{int(h[:2]) + 1:02d}:{h[3:]}:00", 'timeZone': 'America/Lima'}}
+        ev = {
+            'summary': t,
+            'start': {'dateTime': f + 'T' + h + ':00', 'timeZone': 'America/Lima'},
+            'end': {'dateTime': f + 'T' + f"{int(h[:2]) + 1:02d}:{h[3:]}:00", 'timeZone': 'America/Lima'}
+        }
         svc.events().insert(calendarId='primary', body=ev).execute()
+
     today = datetime.now()
     year, month = today.year, today.month
     cal = calendar.monthcalendar(year, month)
@@ -181,6 +201,7 @@ def calendario():
     for e in evs:
         d = int(e['start'].get('dateTime', e['start'].get('date', '')).split('T')[0].split('-')[2])
         ev_by.setdefault(d, []).append(e.get('summary', ''))
+
     return render_template('calendario.html', cal=cal, year=year, month=month, eventos_por_dia=ev_by)
 
 @app.route('/logout')
